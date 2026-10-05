@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crypto Sim</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #07090F;
+  --surface:   #0D1321;
+  --surface2:  #111B2E;
+  --border:    #1A2540;
+  --green:     #10D98A;
+  --green-glo: rgba(16,217,138,.20);
+  --green-dim: rgba(16,217,138,.10);
+  --red:       #F03A5F;
+  --red-glo:   rgba(240,58,95,.20);
+  --red-dim:   rgba(240,58,95,.10);
+  --amber:     #F0B429;
+  --amber-dim: rgba(240,180,41,.10);
+  --t-dim:     #3D5A7A;
+  --t-mid:     #6B8AAA;
+  --t-on:      #A8C0D8;
+  --t-bright:  #E2EAF4;
+  --zero-ln:   #1E3050;
+  --font:      'Space Mono', monospace;
+  --tower-h:   90px;
+  --col-w:     82px;
+  --rad:       2px;
+}
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  background: var(--bg);
+  color: var(--t-on);
+  font-family: var(--font);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top,0px);
+  padding-bottom: env(safe-area-inset-bottom,0px);
+}
+
+/* ── HEADER ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.h-title { font-size:11px; font-weight:700; letter-spacing:.18em; color:var(--amber); }
+.h-port  { display:flex; gap:18px; font-size:10px; }
+.h-port span { color:var(--t-mid); }
+.h-port strong { color:var(--t-bright); }
+.pnl-pos { color:var(--green) !important; }
+.pnl-neg { color:var(--red)   !important; }
+.h-right { display:flex; align-items:center; gap:8px; font-size:10px; color:var(--t-mid); }
+
+.live-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--green); box-shadow:0 0 6px var(--green);
+  animation:pulse 1.4s ease-in-out infinite;
+}
+.live-dot.off { background:var(--red); box-shadow:0 0 6px var(--red); animation:none; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+@media (prefers-reduced-motion:reduce) {
+  .live-dot { animation:none; }
+  .tower    { transition:none !important; }
+  .ticker-inner { animation:none !important; }
+}
+
+/* ── CHART ── */
+.chart-wrap { padding:16px 20px 0; overflow-x:auto; flex-shrink:0; }
+.chart { display:flex; gap:9px; min-width:max-content; }
+
+.coin-col {
+  width: var(--col-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.coin-name {
+  font-size:9px; font-weight:700; letter-spacing:.10em;
+  color:var(--t-mid); margin-bottom:8px;
+}
+.upper-zone {
+  width:100%; height:var(--tower-h);
+  display:flex; flex-direction:column;
+  justify-content:flex-end; align-items:center;
+}
+.lower-zone {
+  width:100%; height:var(--tower-h);
+  display:flex; flex-direction:column;
+  justify-content:flex-start; align-items:center;
+}
+.tower {
+  width:48px; height:0;
+  transition: height .38s cubic-bezier(.22,.61,.36,1),
+              background .3s ease, box-shadow .3s ease;
+}
+.tower.up {
+  border-radius:3px 3px 0 0;
+  background: linear-gradient(to top, var(--green-dim), var(--green));
+  box-shadow: 0 0 12px var(--green-glo), 0 -5px 18px var(--green-glo);
+}
+.tower.dn {
+  border-radius:0 0 3px 3px;
+  background: linear-gradient(to bottom, var(--red-dim), var(--red));
+  box-shadow: 0 0 12px var(--red-glo), 0 5px 18px var(--red-glo);
+}
+.zero-line {
+  width:100%; height:1px; background:var(--zero-ln);
+  position:relative; flex-shrink:0;
+}
+.zero-line::after {
+  content:''; position:absolute; inset:0;
+  background:var(--amber); opacity:.25;
+}
+.price-info { margin-top:8px; text-align:center; }
+.price-val  { font-size:8px; font-weight:700; color:var(--t-bright); white-space:nowrap; }
+.price-pct  { font-size:8px; margin-top:2px; }
+.price-pct.up { color:var(--green); }
+.price-pct.dn { color:var(--red);   }
+.sparkline {
+  margin-top:6px; width:76px; height:18px;
+  display:flex; align-items:flex-end; gap:1px; overflow:hidden;
+}
+.spark-bar { flex:1; min-height:2px; border-radius:1px 1px 0 0; }
+.spark-bar.up { background:var(--green); opacity:.6; }
+.spark-bar.dn { background:var(--red);   opacity:.6; }
+
+/* ── TRADE TABLE ── */
+.trade-wrap {
+  padding: 16px 20px 0;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.trade-label {
+  font-size:9px; font-weight:700; letter-spacing:.14em;
+  color:var(--t-dim); margin-bottom:8px;
+}
+.trade-table {
+  border-collapse: collapse;
+  min-width: max-content;
+  width: 100%;
+}
+.trade-table th {
+  font-size:8px; font-weight:700; letter-spacing:.10em;
+  color:var(--t-dim); text-align:left;
+  padding:4px 10px 6px; border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+.trade-table th.r { text-align:right; }
+.trade-table td {
+  font-size:10px; padding:5px 10px;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap; vertical-align:middle;
+}
+.trade-table tbody tr:hover { background:var(--surface); }
+.td-coin { font-weight:700; color:var(--amber); font-size:10px; }
+.td-price { color:var(--t-on); text-align:right; }
+.td-held  { color:var(--t-mid); text-align:right; font-size:9px; }
+.td-val   { text-align:right; font-size:9px; }
+.td-val.has-pos { color:var(--green); }
+.td-val.empty   { color:var(--t-dim); }
+
+.td-buy, .td-sell { padding:5px 6px; }
+.trade-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--t-bright);
+  font-family: var(--font);
+  font-size: 9px;
+  padding: 4px 6px;
+  width: 72px;
+  border-radius: var(--rad);
+  outline: none;
+  transition: border-color .15s;
+}
+.trade-input:focus { border-color:var(--amber); }
+.trade-input::placeholder { color:var(--t-dim); }
+
+.trade-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--t-mid);
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--rad);
+  margin-left: 4px;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.trade-btn.buy:hover  { border-color:var(--green); color:var(--green); background:var(--green-dim); }
+.trade-btn.sell:hover { border-color:var(--red);   color:var(--red);   background:var(--red-dim);   }
+.trade-btn.all        { font-size:8px; padding:4px 6px; }
+.trade-btn.all:hover  { border-color:var(--red);   color:var(--red);   background:var(--red-dim);   }
+
+/* ── LOG ── */
+.bottom-row {
+  display: flex;
+  gap: 16px;
+  padding: 14px 20px 0;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.log-wrap { flex:1; min-width:280px; }
+.log-label {
+  font-size:9px; font-weight:700; letter-spacing:.14em;
+  color:var(--t-dim); margin-bottom:6px;
+}
+.log-list {
+  height: 110px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--rad);
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.8;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.log-list:empty::before {
+  content: 'no trades yet';
+  color: var(--t-dim);
+}
+.log-line.buy-line  { color:var(--green); }
+.log-line.sell-line { color:var(--red);   }
+
+/* ── FLASH MSG ── */
+.msg-wrap { flex:1; min-width:160px; display:flex; align-items:flex-end; }
+#msg {
+  font-size:9px; padding:6px 10px;
+  border-radius:var(--rad);
+  background:transparent;
+  transition:opacity .4s;
+  line-height:1.5;
+}
+#msg.ok  { color:var(--green); background:var(--green-dim); }
+#msg.err { color:var(--red);   background:var(--red-dim);   }
+
+/* ── CONTROLS ── */
+.controls {
+  display:flex; align-items:center; gap:16px;
+  padding:12px 20px;
+  border-top:1px solid var(--border);
+  margin-top:14px;
+  flex-shrink:0; flex-wrap:wrap;
+}
+.ctrl-btn {
+  background:var(--surface); border:1px solid var(--border);
+  color:var(--t-on); font-family:var(--font); font-size:10px;
+  padding:5px 12px; cursor:pointer; border-radius:var(--rad);
+  transition:border-color .2s,color .2s;
+}
+.ctrl-btn:hover { border-color:var(--amber); color:var(--amber); }
+.ctrl-label { font-size:10px; color:var(--t-dim); }
+input[type="range"] { accent-color:var(--amber); width:88px; }
+.tick-count { font-size:10px; color:var(--t-dim); margin-left:auto; }
+
+/* ── TICKER ── */
+.ticker-strip { overflow:hidden; border-top:1px solid var(--border); padding:7px 0; flex-shrink:0; }
+.ticker-inner {
+  display:inline-flex; gap:28px; padding:0 14px;
+  white-space:nowrap;
+  animation:tickScroll 30s linear infinite;
+}
+@keyframes tickScroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+.t-item { display:inline-flex; gap:6px; font-size:9px; }
+.t-name { color:var(--amber); }
+.t-up   { color:var(--green); }
+.t-dn   { color:var(--red);   }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-title">CRYPTO SIM</div>
+  <div class="h-port">
+    <span>CASH&nbsp;<strong id="h-cash">$1,000.00</strong></span>
+    <span>VALUE&nbsp;<strong id="h-val">$1,000.00</strong></span>
+    <span>P&amp;L&nbsp;<strong id="h-pnl">$0.00</strong></span>
+  </div>
+  <div class="h-right">
+    <div class="live-dot" id="live-dot"></div>
+    <span id="live-lbl">LIVE</span>
+    <span id="clock">--:--:--</span>
+  </div>
+</header>
+
+<!-- tower chart -->
+<div class="chart-wrap">
+  <div class="chart" id="chart"></div>
+</div>
+
+<!-- trade table -->
+<div class="trade-wrap">
+  <div class="trade-label">TRADE DESK</div>
+  <table class="trade-table">
+    <thead>
+      <tr>
+        <th>COIN</th>
+        <th class="r">PRICE</th>
+        <th class="r">HELD</th>
+        <th class="r">VALUE</th>
+        <th colspan="2">BUY&nbsp;($USD)</th>
+        <th colspan="3">SELL&nbsp;(UNITS)</th>
+      </tr>
+    </thead>
+    <tbody id="trade-body"></tbody>
+  </table>
+</div>
+
+<!-- log + flash -->
+<div class="bottom-row">
+  <div class="log-wrap">
+    <div class="log-label">TRADE LOG</div>
+    <div class="log-list" id="log-list"></div>
+  </div>
+  <div class="msg-wrap">
+    <div id="msg"></div>
+  </div>
+</div>
+
+<!-- controls -->
+<div class="controls">
+  <button class="ctrl-btn" id="pause-btn" onclick="togglePause()">⏸ PAUSE</button>
+  <span class="ctrl-label">speed</span>
+  <input type="range" id="speed-sl" min="150" max="2000" step="50" value="800"
+         oninput="setSpeed(+this.value)">
+  <span class="tick-count" id="tick-count">tick 0</span>
+</div>
+
+<!-- ticker -->
+<div class="ticker-strip">
+  <div class="ticker-inner" id="ticker-inner"></div>
+</div>
+
+<script>
+// ── ENGINE ────────────────────────────────────────────────────────────
+const COINS = {
+  BTC:    {price:43250.00, vol:.030, drift:+.0008},
+  ETH:    {price:2310.00,  vol:.040, drift:+.0006},
+  SOL:    {price:98.50,    vol:.060, drift:+.0010},
+  DOGE:   {price:.082,     vol:.080, drift:-.0004},
+  LINK:   {price:14.20,    vol:.050, drift:+.0005},
+  PEPE:   {price:.00001,   vol:.120, drift:-.0006},
+  BLAZE:  {price:3.14,     vol:.090, drift:+.0012},
+  KRAKEN: {price:.55,      vol:.100, drift:-.0003},
+};
+for (const d of Object.values(COINS)) { d.change=0; d.history=[]; }
+
+let cash     = 1000;
+const hold   = Object.fromEntries(Object.keys(COINS).map(k=>[k,0]));
+const trades = [];
+let tick = 0;
+
+function gauss(mu,sigma){
+  const u=1-Math.random(),v=Math.random();
+  return mu+sigma*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function advancePrices(){
+  for(const d of Object.values(COINS)){
+    const s=gauss(d.drift,d.vol);
+    d.price=Math.max(d.price*(1+s),1e-10);
+    d.change=s; d.history.push(s);
+    if(d.history.length>40)d.history.shift();
+  }
+  tick++;
+}
+
+// ── FORMAT ────────────────────────────────────────────────────────────
+function fmtP(p){
+  if(p>=1000)  return '$'+p.toLocaleString('en-US',{maximumFractionDigits:0});
+  if(p>=1)     return '$'+p.toFixed(2);
+  if(p>=.0001) return '$'+p.toFixed(5);
+  return '$'+p.toFixed(8);
+}
+function fmtC(v){ return (v>=0?'+':'')+(v*100).toFixed(2)+'%'; }
+function fmtH(n){ return n>0?(n<0.001?n.toFixed(8):n.toFixed(6)):'-'; }
+
+// ── PORTFOLIO VALUE ───────────────────────────────────────────────────
+function portVal(){ return cash+Object.entries(hold).reduce((s,[k,v])=>s+v*COINS[k].price,0); }
+
+// ── TRADE ACTIONS ─────────────────────────────────────────────────────
+function flash(txt,err){
+  const el=document.getElementById('msg');
+  el.textContent=txt; el.className=err?'err':'ok';
+  clearTimeout(flash._t);
+  flash._t=setTimeout(()=>{el.textContent='';el.className='';},3200);
+}
+
+function buy(coin){
+  const inp=document.getElementById('bi-'+coin);
+  const usd=parseFloat(inp.value);
+  if(!usd||usd<=0){flash('enter a dollar amount',true);return;}
+  if(usd>cash){flash('not enough cash — $'+cash.toFixed(2)+' available',true);return;}
+  const price=COINS[coin].price, qty=usd/price;
+  cash-=usd; hold[coin]+=qty;
+  const line=`[t${tick}] BUY  ${coin}  ${qty.toFixed(6)} @ ${fmtP(price)}  -$${usd.toFixed(2)}`;
+  trades.unshift({line,type:'buy'});
+  flash('✓ '+qty.toFixed(6)+' '+coin+' @ '+fmtP(price));
+  inp.value='';
+  renderPortfolio(); renderLog();
+}
+
+function sellUnits(coin){
+  const inp=document.getElementById('si-'+coin);
+  const raw=inp.value.trim().toLowerCase();
+  if(!raw){flash('enter units to sell',true);return;}
+  const qty=raw==='all'?hold[coin]:parseFloat(raw);
+  if(!qty||qty<=0){flash('enter a valid amount',true);return;}
+  if(qty>hold[coin]+1e-12){flash('only holding '+fmtH(hold[coin])+' '+coin,true);return;}
+  const price=COINS[coin].price, proceeds=qty*price;
+  hold[coin]=Math.max(hold[coin]-qty,0); cash+=proceeds;
+  const line=`[t${tick}] SELL ${coin}  ${qty.toFixed(6)} @ ${fmtP(price)}  +$${proceeds.toFixed(4)}`;
+  trades.unshift({line,type:'sell'});
+  flash('✓ sold '+qty.toFixed(6)+' '+coin+' → +$'+proceeds.toFixed(4));
+  inp.value='';
+  renderPortfolio(); renderLog();
+}
+
+function sellAll(coin){
+  if(!hold[coin]){flash('no '+coin+' held',true);return;}
+  const qty=hold[coin], price=COINS[coin].price, proceeds=qty*price;
+  hold[coin]=0; cash+=proceeds;
+  const line=`[t${tick}] SELL ${coin}  ${qty.toFixed(6)} @ ${fmtP(price)}  +$${proceeds.toFixed(4)}`;
+  trades.unshift({line,type:'sell'});
+  flash('✓ sold all '+coin+' → +$'+proceeds.toFixed(4));
+  renderPortfolio(); renderLog();
+}
+
+// ── DOM BUILD: CHART ──────────────────────────────────────────────────
+const chartEl=document.getElementById('chart');
+const cRefs={};
+const MAX_H=80, MAX_PCT=0.11;
+
+for(const name of Object.keys(COINS)){
+  const col=document.createElement('div');
+  col.className='coin-col';
+  col.innerHTML=`
+    <div class="coin-name">${name}</div>
+    <div class="upper-zone"><div class="tower" id="tu-${name}"></div></div>
+    <div class="zero-line"></div>
+    <div class="lower-zone"><div class="tower" id="td-${name}"></div></div>
+    <div class="price-info">
+      <div class="price-val" id="pv-${name}">—</div>
+      <div class="price-pct" id="pc-${name}">—</div>
+    </div>
+    <div class="sparkline" id="sp-${name}"></div>
+  `;
+  chartEl.appendChild(col);
+  cRefs[name]={
+    tu:col.querySelector('#tu-'+name),
+    td:col.querySelector('#td-'+name),
+    pv:col.querySelector('#pv-'+name),
+    pc:col.querySelector('#pc-'+name),
+    sp:col.querySelector('#sp-'+name),
+  };
+}
+
+// ── DOM BUILD: TRADE TABLE ────────────────────────────────────────────
+const tbody=document.getElementById('trade-body');
+const tRefs={};
+
+for(const name of Object.keys(COINS)){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td class="td-coin">${name}</td>
+    <td class="td-price" id="tp-${name}">—</td>
+    <td class="td-held"  id="th-${name}">—</td>
+    <td class="td-val"   id="tv-${name}">—</td>
+    <td class="td-buy">
+      <input class="trade-input" id="bi-${name}" type="number" min="0" step="any" placeholder="$USD">
+      <button class="trade-btn buy" onclick="buy('${name}')">BUY</button>
+    </td>
+    <td class="td-sell">
+      <input class="trade-input" id="si-${name}" type="text" placeholder="units / all">
+      <button class="trade-btn sell" onclick="sellUnits('${name}')">SELL</button>
+      <button class="trade-btn sell all" onclick="sellAll('${name}')">ALL</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  tRefs[name]={
+    tp:tr.querySelector('#tp-'+name),
+    th:tr.querySelector('#th-'+name),
+    tv:tr.querySelector('#tv-'+name),
+  };
+}
+
+// ── DOM BUILD: TICKER ─────────────────────────────────────────────────
+const tickerInner=document.getElementById('ticker-inner');
+const tickRefs={};
+[0,1].forEach(()=>{
+  for(const name of Object.keys(COINS)){
+    const item=document.createElement('span');
+    item.className='t-item';
+    const nEl=document.createElement('span'); nEl.className='t-name'; nEl.textContent=name;
+    const pEl=document.createElement('span');
+    const cEl=document.createElement('span');
+    item.appendChild(nEl); item.appendChild(pEl); item.appendChild(cEl);
+    tickerInner.appendChild(item);
+    if(!tickRefs[name])tickRefs[name]=[];
+    tickRefs[name].push({p:pEl,c:cEl});
+  }
+});
+
+// ── RENDER ────────────────────────────────────────────────────────────
+function renderChart(){
+  for(const[name,d]of Object.entries(COINS)){
+    const r=cRefs[name];
+    const h=Math.min(Math.abs(d.change)/MAX_PCT,1)*MAX_H;
+    const up=d.change>=0;
+    r.tu.style.height=up?h+'px':'0';
+    r.td.style.height=up?'0':h+'px';
+    r.tu.className=up?'tower up':'tower';
+    r.td.className=up?'tower':'tower dn';
+    r.pv.textContent=fmtP(d.price);
+    r.pc.textContent=fmtC(d.change);
+    r.pc.className='price-pct '+(up?'up':'dn');
+    r.sp.innerHTML='';
+    for(const v of d.history){
+      const bar=document.createElement('div');
+      bar.className='spark-bar '+(v>=0?'up':'dn');
+      bar.style.height=Math.max(Math.min(Math.abs(v)/MAX_PCT,1)*16,2)+'px';
+      r.sp.appendChild(bar);
+    }
+    // ticker
+    const cls=up?'t-up':'t-dn';
+    for(const t of tickRefs[name]){
+      t.p.textContent=fmtP(d.price); t.p.className=cls;
+      t.c.textContent=fmtC(d.change); t.c.className=cls;
+    }
+  }
+}
+
+function renderPortfolio(){
+  const pv=portVal(), pnl=pv-1000;
+  document.getElementById('h-cash').textContent='$'+cash.toFixed(2);
+  document.getElementById('h-val').textContent='$'+pv.toFixed(2);
+  const pnlEl=document.getElementById('h-pnl');
+  pnlEl.textContent=(pnl>=0?'+':'-')+'$'+Math.abs(pnl).toFixed(2);
+  pnlEl.className=pnl>=0?'pnl-pos':'pnl-neg';
+  // table
+  for(const[name,d]of Object.entries(COINS)){
+    const r=tRefs[name], h=hold[name], v=h*d.price;
+    r.tp.textContent=fmtP(d.price);
+    r.th.textContent=fmtH(h);
+    if(h>0){
+      r.tv.textContent=fmtP(v);
+      r.tv.className='td-val has-pos';
+    } else {
+      r.tv.textContent='—';
+      r.tv.className='td-val empty';
+    }
+  }
+  document.getElementById('tick-count').textContent='tick '+tick;
+}
+
+function renderLog(){
+  const el=document.getElementById('log-list');
+  el.innerHTML='';
+  for(const t of trades.slice(0,30)){
+    const div=document.createElement('div');
+    div.className='log-line '+(t.type==='buy'?'buy-line':'sell-line');
+    div.textContent=t.line;
+    el.appendChild(div);
+  }
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────
+function updateClock(){
+  document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8);
+}
+setInterval(updateClock,1000); updateClock();
+
+// ── LOOP ──────────────────────────────────────────────────────────────
+let paused=false, speed=800, interval=null;
+
+function step(){ advancePrices(); renderChart(); renderPortfolio(); }
+function startLoop(){ clearInterval(interval); interval=setInterval(step,speed); }
+
+function togglePause(){
+  paused=!paused;
+  const btn=document.getElementById('pause-btn');
+  const dot=document.getElementById('live-dot');
+  const lbl=document.getElementById('live-lbl');
+  if(paused){
+    clearInterval(interval);
+    btn.textContent='▶ RESUME';
+    dot.classList.add('off');
+    lbl.textContent='PAUSED';
+  } else {
+    startLoop();
+    btn.textContent='⏸ PAUSE';
+    dot.classList.remove('off');
+    lbl.textContent='LIVE';
+  }
+}
+function setSpeed(v){ speed=v; if(!paused)startLoop(); }
+
+// pre-seed sparklines
+for(let i=0;i<22;i++)advancePrices();
+tick=0;
+renderChart();
+renderPortfolio();
+renderLog();
+startLoop();
+</script>
+</body>
+</html>
